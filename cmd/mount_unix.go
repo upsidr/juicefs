@@ -338,6 +338,27 @@ func fuseFlags() []cli.Flag {
 			Name:  "all-squash",
 			Usage: "mapping all users to another one specified as <uid>:<gid>",
 		},
+		&cli.StringFlag{
+			Name:  "kerberos-realm",
+			Usage: "enable Kerberos ticket validation and specify the realm (e.g., DIRECTORY.UPSIDR.LOCAL)",
+		},
+		&cli.StringFlag{
+			Name:  "kerberos-config",
+			Usage: "path to krb5.conf (default: /etc/krb5.conf)",
+		},
+		&cli.IntFlag{
+			Name:  "kerberos-admin-gid",
+			Usage: "GID that grants root-equivalent access when Kerberos is enabled",
+		},
+		&cli.StringFlag{
+			Name:  "kerberos-ldap-node",
+			Usage: "LDAP directory node for group lookup (e.g., /LDAPv3/ipa.directory.upsidr.local)",
+		},
+		&cli.IntFlag{
+			Name:  "kerberos-cache-ttl",
+			Value: 1800,
+			Usage: "TTL in seconds for caching Kerberos ticket validation results",
+		},
 		&cli.BoolFlag{
 			Name:  "prefix-internal",
 			Usage: "add '.jfs' prefix to all internal files",
@@ -1060,6 +1081,29 @@ func mountMain(v *vfs.VFS, c *cli.Context) {
 			logger.Infof("Map root uid/gid 0 to %d/%d by setting root-squash", uid, gid)
 		}
 	}
+	// Kerberos ticket validation
+	kerberosRealm := c.String("kerberos-realm")
+	if kerberosRealm != "" {
+		krbConfPath := c.String("kerberos-config")
+		if krbConfPath == "" {
+			krbConfPath = "/etc/krb5.conf"
+		}
+		cacheTTL := c.Int("kerberos-cache-ttl")
+		if cacheTTL == 0 {
+			cacheTTL = 1800
+		}
+		conf.KerberosSquash = &vfs.KerberosSquashConfig{
+			Realm:      kerberosRealm,
+			ConfigPath: krbConfPath,
+			AdminGid:   uint32(c.Int("kerberos-admin-gid")),
+			LDAPNode:   c.String("kerberos-ldap-node"),
+			CacheTTL:   cacheTTL,
+		}
+		conf.NonDefaultPermission = true
+		logger.Infof("Kerberos squash enabled for realm %s (admin_gid=%d, ldap_node=%s, cache_ttl=%ds)",
+			kerberosRealm, conf.KerberosSquash.AdminGid, conf.KerberosSquash.LDAPNode, cacheTTL)
+	}
+
 	logger.Infof("Mounting volume %s at %s ...", conf.Format.Name, conf.Meta.MountPoint)
 	err := fuse.Serve(v, c.String("o"), c.Bool("enable-xattr"), c.Bool("enable-ioctl"))
 	if err != nil {
