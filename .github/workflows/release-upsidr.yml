@@ -1,0 +1,40 @@
+name: release-upsidr
+
+on:
+  push:
+    tags:
+      - 'v*-upsidr*'   # e.g., v1.3.0-upsidr.1
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Clean up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /usr/local/.ghcup
+          sudo docker system prune -af
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set REVISIONDATE
+        run: echo "REVISIONDATE=$(date +%Y%m%d)" >> $GITHUB_ENV
+
+      - name: Setup release environment
+        run: echo 'GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}' > .release-env
+
+      - name: Run GoReleaser
+        run: |
+          docker run --rm --privileged \
+            -e REVISIONDATE=${{ env.REVISIONDATE }} \
+            --env-file .release-env \
+            -v $HOME/go/pkg/mod:/go/pkg/mod \
+            -v $(pwd):/go/src/github.com/juicedata/juicefs \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -w /go/src/github.com/juicedata/juicefs \
+            juicedata/golang-cross:latest release --rm-dist --config .goreleaser-upsidr.yml
