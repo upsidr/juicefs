@@ -140,9 +140,10 @@ type Config struct {
 	Subdir               string `json:",omitempty"`
 	PrefixInternal       bool
 	HideInternal         bool
-	RootSquash           *AnonymousAccount `json:",omitempty"`
-	AllSquash            *AnonymousAccount `json:",omitempty"`
-	NonDefaultPermission bool              `json:",omitempty"`
+	RootSquash           *AnonymousAccount     `json:",omitempty"`
+	AllSquash            *AnonymousAccount     `json:",omitempty"`
+	KerberosSquash       *KerberosSquashConfig `json:",omitempty"`
+	NonDefaultPermission bool                  `json:",omitempty"`
 	UMask                uint16
 
 	Pid       int
@@ -158,6 +159,18 @@ type Config struct {
 type AnonymousAccount struct {
 	Uid uint32
 	Gid uint32
+}
+
+// KerberosSquashConfig configures Kerberos ticket-based sudo access control.
+// When enabled, sudo (UID=0) operations are denied by default.
+// Only users with a valid Kerberos ticket AND membership in AdminGid are
+// allowed root-equivalent access. Non-sudo operations are unaffected.
+type KerberosSquashConfig struct {
+	Realm      string `json:",omitempty"` // Kerberos realm (e.g., "DIRECTORY.UPSIDR.LOCAL")
+	ConfigPath string `json:",omitempty"` // path to krb5.conf (default: /etc/krb5.conf)
+	AdminGid   uint32 `json:",omitempty"` // GID that grants root-equivalent access
+	LDAPNode   string `json:",omitempty"` // LDAP directory node (e.g., /LDAPv3/ipa.directory.upsidr.local)
+	CacheTTL   int    `json:",omitempty"` // TTL in seconds for cached results (default: 1800)
 }
 
 var (
