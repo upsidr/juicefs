@@ -37,4 +37,4 @@ jobs:
             -v $(pwd):/go/src/github.com/juicedata/juicefs \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -w /go/src/github.com/juicedata/juicefs \
-            juicedata/golang-cross:latest release --rm-dist --config .goreleaser-upsidr.yml
+            goreleaser/goreleaser-cross:v1.25 release --clean --config .goreleaser-upsidr.yml
