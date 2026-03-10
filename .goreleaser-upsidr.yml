@@ -1,3 +1,4 @@
+version: 2
 project_name: juicefs
 env:
   - GO111MODULE=on
@@ -9,8 +10,8 @@ before:
 builds:
   - id: juicefs-linux-amd64
     env:
-      - CC=/usr/bin/musl-gcc
-    ldflags: -s -w -X github.com/juicedata/juicefs/pkg/version.version={{.Version}} -X github.com/juicedata/juicefs/pkg/version.revision={{.ShortCommit}} -X github.com/juicedata/juicefs/pkg/version.revisionDate={{.Env.REVISIONDATE}} -linkmode external -extldflags '-static'
+      - CC=x86_64-linux-gnu-gcc
+    ldflags: -s -w -X github.com/juicedata/juicefs/pkg/version.version={{.Version}} -X github.com/juicedata/juicefs/pkg/version.revision={{.ShortCommit}} -X github.com/juicedata/juicefs/pkg/version.revisionDate={{.Env.REVISIONDATE}}
     main: .
     goos:
       - linux
@@ -18,8 +19,8 @@ builds:
       - amd64
   - id: juicefs-linux-arm64
     env:
-      - CC=/usr/local/aarch64-linux-musl-cross/bin/aarch64-linux-musl-cc
-    ldflags: -s -w -X github.com/juicedata/juicefs/pkg/version.version={{.Version}} -X github.com/juicedata/juicefs/pkg/version.revision={{.ShortCommit}} -X github.com/juicedata/juicefs/pkg/version.revisionDate={{.Env.REVISIONDATE}} -linkmode external -extldflags '-static'
+      - CC=aarch64-linux-gnu-gcc
+    ldflags: -s -w -X github.com/juicedata/juicefs/pkg/version.version={{.Version}} -X github.com/juicedata/juicefs/pkg/version.revision={{.ShortCommit}} -X github.com/juicedata/juicefs/pkg/version.revisionDate={{.Env.REVISIONDATE}}
     main: .
     goos:
       - linux
@@ -48,7 +49,7 @@ builds:
 checksum:
   name_template: 'checksums.txt'
 snapshot:
-  name_template: "{{ .Tag }}-next"
+  version_template: "{{ .Tag }}-next"
 changelog:
   sort: asc
   filters:
