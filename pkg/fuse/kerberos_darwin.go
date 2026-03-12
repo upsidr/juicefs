@@ -20,29 +20,11 @@
 package fuse
 
 import (
-	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
 	"syscall"
 )
-
-// getProcRealUID returns the real UID of the process identified by pid.
-// On macOS, we use `ps` to look up the real UID.
-// This is needed because sudo changes the effective UID to 0, but the
-// Kerberos ticket is stored under the real user's UID.
-func getProcRealUID(pid uint32) (uint32, error) {
-	out, err := exec.Command("ps", "-o", "uid=", "-p", fmt.Sprintf("%d", pid)).Output()
-	if err != nil {
-		return 0, fmt.Errorf("ps failed for pid %d: %w", pid, err)
-	}
-	s := strings.TrimSpace(string(out))
-	uid, err := strconv.ParseUint(s, 10, 32)
-	if err != nil {
-		return 0, fmt.Errorf("parse uid %q for pid %d: %w", s, pid, err)
-	}
-	return uint32(uid), nil
-}
 
 // checkTicketViaCLI checks for a valid Kerberos ticket using klist run as
 // the target user. On macOS, Kerberos tickets are stored in the system's
