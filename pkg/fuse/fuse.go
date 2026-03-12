@@ -85,7 +85,7 @@ func (fs *fileSystem) replyEntry(ctx *fuseContext, out *fuse.EntryOut, e *meta.E
 func (fs *fileSystem) Lookup(cancel <-chan struct{}, header *fuse.InHeader, name string, out *fuse.EntryOut) (status fuse.Status) {
 	ctx := fs.newContext(cancel, header)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 	entry, err := fs.v.Lookup(ctx, Ino(header.NodeId), name)
@@ -103,7 +103,7 @@ func (fs *fileSystem) Lookup(cancel <-chan struct{}, header *fuse.InHeader, name
 func (fs *fileSystem) GetAttr(cancel <-chan struct{}, in *fuse.GetAttrIn, out *fuse.AttrOut) (code fuse.Status) {
 	ctx := fs.newContext(cancel, &in.InHeader)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 	var opened uint8
@@ -121,7 +121,7 @@ func (fs *fileSystem) GetAttr(cancel <-chan struct{}, in *fuse.GetAttrIn, out *f
 func (fs *fileSystem) SetAttr(cancel <-chan struct{}, in *fuse.SetAttrIn, out *fuse.AttrOut) (code fuse.Status) {
 	ctx := fs.newContext(cancel, &in.InHeader)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 
@@ -136,7 +136,7 @@ func (fs *fileSystem) SetAttr(cancel <-chan struct{}, in *fuse.SetAttrIn, out *f
 func (fs *fileSystem) Mknod(cancel <-chan struct{}, in *fuse.MknodIn, name string, out *fuse.EntryOut) (code fuse.Status) {
 	ctx := fs.newContext(cancel, &in.InHeader)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 	entry, err := fs.v.Mknod(ctx, Ino(in.NodeId), name, uint16(in.Mode), getUmask(in.Umask, fs.v.Conf.UMask, false), in.Rdev)
@@ -149,7 +149,7 @@ func (fs *fileSystem) Mknod(cancel <-chan struct{}, in *fuse.MknodIn, name strin
 func (fs *fileSystem) Mkdir(cancel <-chan struct{}, in *fuse.MkdirIn, name string, out *fuse.EntryOut) (code fuse.Status) {
 	ctx := fs.newContext(cancel, &in.InHeader)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 	entry, err := fs.v.Mkdir(ctx, Ino(in.NodeId), name, uint16(in.Mode), getUmask(in.Umask, fs.v.Conf.UMask, true))
@@ -162,7 +162,7 @@ func (fs *fileSystem) Mkdir(cancel <-chan struct{}, in *fuse.MkdirIn, name strin
 func (fs *fileSystem) Unlink(cancel <-chan struct{}, header *fuse.InHeader, name string) (code fuse.Status) {
 	ctx := fs.newContext(cancel, header)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 	err := fs.v.Unlink(ctx, Ino(header.NodeId), name)
@@ -172,7 +172,7 @@ func (fs *fileSystem) Unlink(cancel <-chan struct{}, header *fuse.InHeader, name
 func (fs *fileSystem) Rmdir(cancel <-chan struct{}, header *fuse.InHeader, name string) (code fuse.Status) {
 	ctx := fs.newContext(cancel, header)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 	err := fs.v.Rmdir(ctx, Ino(header.NodeId), name)
@@ -182,7 +182,7 @@ func (fs *fileSystem) Rmdir(cancel <-chan struct{}, header *fuse.InHeader, name 
 func (fs *fileSystem) Rename(cancel <-chan struct{}, in *fuse.RenameIn, oldName string, newName string) (code fuse.Status) {
 	ctx := fs.newContext(cancel, &in.InHeader)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 	err := fs.v.Rename(ctx, Ino(in.NodeId), oldName, Ino(in.Newdir), newName, in.Flags)
@@ -192,7 +192,7 @@ func (fs *fileSystem) Rename(cancel <-chan struct{}, in *fuse.RenameIn, oldName 
 func (fs *fileSystem) Link(cancel <-chan struct{}, in *fuse.LinkIn, name string, out *fuse.EntryOut) (code fuse.Status) {
 	ctx := fs.newContext(cancel, &in.InHeader)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 	entry, err := fs.v.Link(ctx, Ino(in.Oldnodeid), Ino(in.NodeId), name)
@@ -205,7 +205,7 @@ func (fs *fileSystem) Link(cancel <-chan struct{}, in *fuse.LinkIn, name string,
 func (fs *fileSystem) Symlink(cancel <-chan struct{}, header *fuse.InHeader, target string, name string, out *fuse.EntryOut) (code fuse.Status) {
 	ctx := fs.newContext(cancel, header)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 	entry, err := fs.v.Symlink(ctx, target, Ino(header.NodeId), name)
@@ -218,7 +218,7 @@ func (fs *fileSystem) Symlink(cancel <-chan struct{}, header *fuse.InHeader, tar
 func (fs *fileSystem) Readlink(cancel <-chan struct{}, header *fuse.InHeader) (out []byte, code fuse.Status) {
 	ctx := fs.newContext(cancel, header)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return nil, fuse.Status(syscall.EACCES)
 	}
 	path, err := fs.v.Readlink(ctx, Ino(header.NodeId))
@@ -228,7 +228,7 @@ func (fs *fileSystem) Readlink(cancel <-chan struct{}, header *fuse.InHeader) (o
 func (fs *fileSystem) GetXAttr(cancel <-chan struct{}, header *fuse.InHeader, attr string, dest []byte) (sz uint32, code fuse.Status) {
 	ctx := fs.newContext(cancel, header)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return 0, fuse.Status(syscall.EACCES)
 	}
 	value, err := fs.v.GetXattr(ctx, Ino(header.NodeId), attr, uint32(len(dest)))
@@ -242,7 +242,7 @@ func (fs *fileSystem) GetXAttr(cancel <-chan struct{}, header *fuse.InHeader, at
 func (fs *fileSystem) ListXAttr(cancel <-chan struct{}, header *fuse.InHeader, dest []byte) (uint32, fuse.Status) {
 	ctx := fs.newContext(cancel, header)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return 0, fuse.Status(syscall.EACCES)
 	}
 	data, err := fs.v.ListXattr(ctx, Ino(header.NodeId), len(dest))
@@ -256,7 +256,7 @@ func (fs *fileSystem) ListXAttr(cancel <-chan struct{}, header *fuse.InHeader, d
 func (fs *fileSystem) SetXAttr(cancel <-chan struct{}, in *fuse.SetXAttrIn, attr string, data []byte) fuse.Status {
 	ctx := fs.newContext(cancel, &in.InHeader)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 	err := fs.v.SetXattr(ctx, Ino(in.NodeId), attr, data, in.Flags)
@@ -266,7 +266,7 @@ func (fs *fileSystem) SetXAttr(cancel <-chan struct{}, in *fuse.SetXAttrIn, attr
 func (fs *fileSystem) RemoveXAttr(cancel <-chan struct{}, header *fuse.InHeader, attr string) (code fuse.Status) {
 	ctx := fs.newContext(cancel, header)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 	err := fs.v.RemoveXattr(ctx, Ino(header.NodeId), attr)
@@ -276,7 +276,7 @@ func (fs *fileSystem) RemoveXAttr(cancel <-chan struct{}, header *fuse.InHeader,
 func (fs *fileSystem) Create(cancel <-chan struct{}, in *fuse.CreateIn, name string, out *fuse.CreateOut) (code fuse.Status) {
 	ctx := fs.newContext(cancel, &in.InHeader)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 	entry, fh, err := fs.v.Create(ctx, Ino(in.NodeId), name, uint16(in.Mode), getCreateUmask(in.Umask, fs.v.Conf.UMask), in.Flags)
@@ -290,7 +290,7 @@ func (fs *fileSystem) Create(cancel <-chan struct{}, in *fuse.CreateIn, name str
 func (fs *fileSystem) Open(cancel <-chan struct{}, in *fuse.OpenIn, out *fuse.OpenOut) (status fuse.Status) {
 	ctx := fs.newContext(cancel, &in.InHeader)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 	entry, fh, err := fs.v.Open(ctx, Ino(in.NodeId), in.Flags)
@@ -315,7 +315,7 @@ func (fs *fileSystem) Open(cancel <-chan struct{}, in *fuse.OpenIn, out *fuse.Op
 func (fs *fileSystem) Read(cancel <-chan struct{}, in *fuse.ReadIn, buf []byte) (fuse.ReadResult, fuse.Status) {
 	ctx := fs.newContext(cancel, &in.InHeader)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return nil, fuse.Status(syscall.EACCES)
 	}
 	n, err := fs.v.Read(ctx, Ino(in.NodeId), buf, in.Offset, in.Fh)
@@ -334,7 +334,7 @@ func (fs *fileSystem) Release(cancel <-chan struct{}, in *fuse.ReleaseIn) {
 func (fs *fileSystem) Write(cancel <-chan struct{}, in *fuse.WriteIn, data []byte) (written uint32, code fuse.Status) {
 	ctx := fs.newContext(cancel, &in.InHeader)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return 0, fuse.Status(syscall.EACCES)
 	}
 	err := fs.v.Write(ctx, Ino(in.NodeId), data, in.Offset, in.Fh)
@@ -361,7 +361,7 @@ func (fs *fileSystem) Fsync(cancel <-chan struct{}, in *fuse.FsyncIn) (code fuse
 func (fs *fileSystem) Fallocate(cancel <-chan struct{}, in *fuse.FallocateIn) (code fuse.Status) {
 	ctx := fs.newContext(cancel, &in.InHeader)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 	err := fs.v.Fallocate(ctx, Ino(in.NodeId), uint8(in.Mode), int64(in.Offset), int64(in.Length), in.Fh)
@@ -423,7 +423,7 @@ func (fs *fileSystem) Flock(cancel <-chan struct{}, in *fuse.LkIn, block bool) (
 func (fs *fileSystem) OpenDir(cancel <-chan struct{}, in *fuse.OpenIn, out *fuse.OpenOut) (status fuse.Status) {
 	ctx := fs.newContext(cancel, &in.InHeader)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 	ino := Ino(in.NodeId)
@@ -438,7 +438,7 @@ func (fs *fileSystem) OpenDir(cancel <-chan struct{}, in *fuse.OpenIn, out *fuse
 func (fs *fileSystem) ReadDir(cancel <-chan struct{}, in *fuse.ReadIn, out *fuse.DirEntryList) fuse.Status {
 	ctx := fs.newContext(cancel, &in.InHeader)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 	entries, _, err := fs.v.Readdir(ctx, Ino(in.NodeId), in.Size, int(in.Offset), in.Fh, false)
@@ -458,7 +458,7 @@ func (fs *fileSystem) ReadDir(cancel <-chan struct{}, in *fuse.ReadIn, out *fuse
 func (fs *fileSystem) ReadDirPlus(cancel <-chan struct{}, in *fuse.ReadIn, out *fuse.DirEntryList) fuse.Status {
 	ctx := fs.newContext(cancel, &in.InHeader)
 	defer releaseContext(ctx)
-	if ctx.sudoDenied {
+	if ctx.kerberosDenied {
 		return fuse.Status(syscall.EACCES)
 	}
 	entries, readAt, err := fs.v.Readdir(ctx, Ino(in.NodeId), in.Size, int(in.Offset), in.Fh, true)
@@ -533,22 +533,26 @@ func Serve(v *vfs.VFS, options string, xattrs, ioctl bool) error {
 	conf := v.Conf
 	imp := newFileSystem(conf, v)
 
-	// Initialize Kerberos ticket validation cache if configured
-	if conf.KerberosSquash != nil {
-		ttl := time.Duration(conf.KerberosSquash.CacheTTL) * time.Second
+	// Initialize Kerberos user identity verification cache if configured
+	if conf.Kerberos != nil {
+		ttl := time.Duration(conf.Kerberos.CacheTTL) * time.Second
 		if ttl == 0 {
 			ttl = 30 * time.Minute
 		}
-		ldapNode := conf.KerberosSquash.LDAPNode
+		failureTTL := time.Duration(conf.Kerberos.FailureCacheTTL) * time.Second
+		if failureTTL == 0 {
+			failureTTL = 30 * time.Second
+		}
+		ldapNode := conf.Kerberos.LDAPNode
 		if ldapNode == "" {
 			ldapNode = "/LDAPv3/ipa.directory.upsidr.local"
 		}
-		krbcache = newKerberosCache(ttl, conf.KerberosSquash.ConfigPath, conf.KerberosSquash.Realm, ldapNode)
-		logger.Infof("kerberos: enabled (realm=%s, config=%s, cache_ttl=%s, admin_gid=%d, ldap_node=%s)",
-			conf.KerberosSquash.Realm,
-			conf.KerberosSquash.ConfigPath,
+		krbcache = newKerberosCache(ttl, failureTTL, conf.Kerberos.ConfigPath, conf.Kerberos.Realm, ldapNode)
+		logger.Infof("kerberos: identity verification enabled (realm=%s, config=%s, cache_ttl=%s, failure_cache_ttl=%s, ldap_node=%s)",
+			conf.Kerberos.Realm,
+			conf.Kerberos.ConfigPath,
 			ttl,
-			conf.KerberosSquash.AdminGid,
+			failureTTL,
 			ldapNode)
 	}
 

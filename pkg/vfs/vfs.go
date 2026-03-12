@@ -142,7 +142,7 @@ type Config struct {
 	HideInternal         bool
 	RootSquash           *AnonymousAccount     `json:",omitempty"`
 	AllSquash            *AnonymousAccount     `json:",omitempty"`
-	KerberosSquash       *KerberosSquashConfig `json:",omitempty"`
+	Kerberos             *KerberosConfig        `json:",omitempty"`
 	NonDefaultPermission bool                  `json:",omitempty"`
 	UMask                uint16
 
@@ -161,16 +161,15 @@ type AnonymousAccount struct {
 	Gid uint32
 }
 
-// KerberosSquashConfig configures Kerberos ticket-based sudo access control.
-// When enabled, sudo (UID=0) operations are denied by default.
-// Only users with a valid Kerberos ticket AND membership in AdminGid are
-// allowed root-equivalent access. Non-sudo operations are unaffected.
-type KerberosSquashConfig struct {
-	Realm      string `json:",omitempty"` // Kerberos realm (e.g., "DIRECTORY.UPSIDR.LOCAL")
-	ConfigPath string `json:",omitempty"` // path to krb5.conf (default: /etc/krb5.conf)
-	AdminGid   uint32 `json:",omitempty"` // GID that grants root-equivalent access
-	LDAPNode   string `json:",omitempty"` // LDAP directory node (e.g., /LDAPv3/ipa.directory.upsidr.local)
-	CacheTTL   int    `json:",omitempty"` // TTL in seconds for cached results (default: 1800)
+// KerberosConfig configures Kerberos-based user identity verification.
+// When enabled, non-root FUSE requests must be backed by a valid Kerberos
+// ticket. Root operations are handled separately by --root-squash.
+type KerberosConfig struct {
+	Realm           string `json:",omitempty"` // required realm (e.g., "DIRECTORY.UPSIDR.LOCAL")
+	ConfigPath      string `json:",omitempty"` // path to krb5.conf (default: /etc/krb5.conf)
+	LDAPNode        string `json:",omitempty"` // LDAP directory node (e.g., /LDAPv3/ipa.directory.upsidr.local)
+	CacheTTL        int    `json:",omitempty"` // success cache TTL in seconds (default: 1800)
+	FailureCacheTTL int    `json:",omitempty"` // failure cache TTL in seconds (default: 30)
 }
 
 var (

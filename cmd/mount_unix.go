@@ -346,10 +346,6 @@ func fuseFlags() []cli.Flag {
 			Name:  "kerberos-config",
 			Usage: "path to krb5.conf (default: /etc/krb5.conf)",
 		},
-		&cli.IntFlag{
-			Name:  "kerberos-admin-gid",
-			Usage: "GID that grants root-equivalent access when Kerberos is enabled",
-		},
 		&cli.StringFlag{
 			Name:  "kerberos-ldap-node",
 			Usage: "LDAP directory node for group lookup (e.g., /LDAPv3/ipa.directory.upsidr.local)",
@@ -357,7 +353,12 @@ func fuseFlags() []cli.Flag {
 		&cli.IntFlag{
 			Name:  "kerberos-cache-ttl",
 			Value: 1800,
-			Usage: "TTL in seconds for caching Kerberos ticket validation results",
+			Usage: "TTL in seconds for caching successful Kerberos ticket validation results",
+		},
+		&cli.IntFlag{
+			Name:  "kerberos-failure-cache-ttl",
+			Value: 30,
+			Usage: "TTL in seconds for caching failed Kerberos ticket validation results",
 		},
 		&cli.BoolFlag{
 			Name:  "prefix-internal",
@@ -1081,7 +1082,7 @@ func mountMain(v *vfs.VFS, c *cli.Context) {
 			logger.Infof("Map root uid/gid 0 to %d/%d by setting root-squash", uid, gid)
 		}
 	}
-	// Kerberos ticket validation
+	// Kerberos user identity verification
 	kerberosRealm := c.String("kerberos-realm")
 	if kerberosRealm != "" {
 		krbConfPath := c.String("kerberos-config")
@@ -1092,16 +1093,20 @@ func mountMain(v *vfs.VFS, c *cli.Context) {
 		if cacheTTL == 0 {
 			cacheTTL = 1800
 		}
-		conf.KerberosSquash = &vfs.KerberosSquashConfig{
-			Realm:      kerberosRealm,
-			ConfigPath: krbConfPath,
-			AdminGid:   uint32(c.Int("kerberos-admin-gid")),
-			LDAPNode:   c.String("kerberos-ldap-node"),
-			CacheTTL:   cacheTTL,
+		failureCacheTTL := c.Int("kerberos-failure-cache-ttl")
+		if failureCacheTTL == 0 {
+			failureCacheTTL = 30
+		}
+		conf.Kerberos = &vfs.KerberosConfig{
+			Realm:           kerberosRealm,
+			ConfigPath:      krbConfPath,
+			LDAPNode:        c.String("kerberos-ldap-node"),
+			CacheTTL:        cacheTTL,
+			FailureCacheTTL: failureCacheTTL,
 		}
 		conf.NonDefaultPermission = true
-		logger.Infof("Kerberos squash enabled for realm %s (admin_gid=%d, ldap_node=%s, cache_ttl=%ds)",
-			kerberosRealm, conf.KerberosSquash.AdminGid, conf.KerberosSquash.LDAPNode, cacheTTL)
+		logger.Infof("Kerberos identity verification enabled for realm %s (ldap_node=%s, cache_ttl=%ds, failure_cache_ttl=%ds)",
+			kerberosRealm, conf.Kerberos.LDAPNode, cacheTTL, failureCacheTTL)
 	}
 
 	logger.Infof("Mounting volume %s at %s ...", conf.Format.Name, conf.Meta.MountPoint)

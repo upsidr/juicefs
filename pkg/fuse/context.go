@@ -45,7 +45,7 @@ type fuseContext struct {
 	cancel   <-chan struct{}
 
 	checkPermission bool
-	sudoDenied      bool // sudo (UID=0) denied because caller is not a Kerberos admin
+	kerberosDenied  bool // non-root user denied because no valid Kerberos ticket
 }
 
 var gidcache = newGidCache(time.Minute * 5)
@@ -64,7 +64,7 @@ func (fs *fileSystem) newContext(cancel <-chan struct{}, header *fuse.InHeader) 
 	ctx.canceled = false
 	ctx.cancel = cancel
 	ctx.header = header
-	ctx.sudoDenied = false
+	ctx.kerberosDenied = false
 	ctx.checkPermission = fs.conf.NonDefaultPermission && header.Uid != 0
 	if header.Uid == 0 && fs.conf.RootSquash != nil {
 		ctx.checkPermission = true
@@ -77,52 +77,21 @@ func (fs *fileSystem) newContext(cancel <-chan struct{}, header *fuse.InHeader) 
 		ctx.header.Gid = fs.conf.AllSquash.Gid
 	}
 
-	// KerberosSquash: deny all sudo (UID=0) operations by default.
-	// Only members of the Kerberos admin GID are granted root-equivalent access.
-	// Non-sudo (UID≠0) operations skip Kerberos/LDAP lookup entirely.
-	if fs.conf.KerberosSquash != nil && krbcache != nil && header.Uid == 0 {
-		adminGid := fs.conf.KerberosSquash.AdminGid
-		if adminGid == 0 {
-			// AdminGid not configured — cannot determine admin status; deny all sudo
-			logger.Warnf("kerberos: DENIED sudo pid=%d (admin_gid not configured)", header.Pid)
-			ctx.sudoDenied = true
+	// Kerberos user identity verification: every non-root FUSE request
+	// must be backed by a valid Kerberos ticket with a matching LDAP UID.
+	// Root (UID=0) operations are handled by --root-squash, not Kerberos.
+	if fs.conf.Kerberos != nil && krbcache != nil && header.Uid != 0 {
+		krbStart := time.Now()
+		valid, _, _, _, cacheHit := krbcache.validateWithMeta(header.Uid)
+		krbElapsed := time.Since(krbStart)
+
+		if valid {
+			logger.Debugf("kerberos: uid=%d verified cache=%v elapsed=%v",
+				header.Uid, cacheHit, krbElapsed)
 		} else {
-			krbStart := time.Now()
-			lookupUid := header.Uid
-
-			if realUid, err := getProcRealUID(header.Pid); err == nil {
-				lookupUid = realUid
-				logger.Debugf("kerberos: pid=%d uid=0→realuid=%d (proc lookup)",
-					header.Pid, realUid)
-			} else {
-				logger.Warnf("kerberos: pid=%d uid=0 proc lookup failed: %v",
-					header.Pid, err)
-			}
-
-			valid, _, _, ldapGids, cacheHit := krbcache.validateWithMeta(lookupUid)
-			krbElapsed := time.Since(krbStart)
-
-			isAdmin := false
-			if valid {
-				for _, gid := range ldapGids {
-					if gid == adminGid {
-						isAdmin = true
-						break
-					}
-				}
-			}
-
-			if isAdmin {
-				logger.Infof("kerberos: uid=%d→ADMIN (member of gid=%d) cache=%v elapsed=%v",
-					lookupUid, adminGid, cacheHit, krbElapsed)
-				ctx.checkPermission = false
-				ctx.header.Uid = 0
-				ctx.header.Gid = 0
-			} else {
-				logger.Warnf("kerberos: DENIED sudo uid=%d pid=%d admin=false cache=%v elapsed=%v",
-					lookupUid, header.Pid, cacheHit, krbElapsed)
-				ctx.sudoDenied = true
-			}
+			logger.Warnf("kerberos: DENIED uid=%d pid=%d cache=%v elapsed=%v",
+				header.Uid, header.Pid, cacheHit, krbElapsed)
+			ctx.kerberosDenied = true
 		}
 	}
 
@@ -164,8 +133,8 @@ func (c *fuseContext) CheckPermission() bool {
 	return c.checkPermission
 }
 
-func (c *fuseContext) SudoDenied() bool {
-	return c.sudoDenied
+func (c *fuseContext) KerberosDenied() bool {
+	return c.kerberosDenied
 }
 
 func (c *fuseContext) Canceled() bool {

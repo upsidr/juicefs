@@ -44,14 +44,15 @@ type kerberosResult struct {
 // kerberosCache caches per-UID Kerberos validation results.
 type kerberosCache struct {
 	sync.Mutex
-	results       map[uint32]*kerberosResult
-	cacheTTL      time.Duration
-	krbConfig     *config.Config
-	expectedRealm string // realm specified via --kerberos-realm
-	ldapNode      string // LDAP node (e.g., /LDAPv3/ipa.directory.upsidr.local)
+	results         map[uint32]*kerberosResult
+	cacheTTL        time.Duration
+	failureCacheTTL time.Duration
+	krbConfig       *config.Config
+	expectedRealm   string // realm specified via --kerberos-realm
+	ldapNode        string // LDAP node (e.g., /LDAPv3/ipa.directory.upsidr.local)
 }
 
-func newKerberosCache(cacheTTL time.Duration, krbConfPath string, realm string, ldapNode string) *kerberosCache {
+func newKerberosCache(cacheTTL time.Duration, failureCacheTTL time.Duration, krbConfPath string, realm string, ldapNode string) *kerberosCache {
 	if krbConfPath == "" {
 		krbConfPath = "/etc/krb5.conf"
 	}
@@ -61,11 +62,12 @@ func newKerberosCache(cacheTTL time.Duration, krbConfPath string, realm string, 
 	}
 
 	kc := &kerberosCache{
-		results:       make(map[uint32]*kerberosResult),
-		cacheTTL:      cacheTTL,
-		krbConfig:     cfg,
-		expectedRealm: realm,
-		ldapNode:      ldapNode,
+		results:         make(map[uint32]*kerberosResult),
+		cacheTTL:        cacheTTL,
+		failureCacheTTL: failureCacheTTL,
+		krbConfig:       cfg,
+		expectedRealm:   realm,
+		ldapNode:        ldapNode,
 	}
 	go kc.cleanup()
 	return kc
@@ -128,7 +130,7 @@ func (kc *kerberosCache) validateWithMeta(uid uint32) (valid bool, ldapUid, ldap
 func (kc *kerberosCache) checkTicket(uid uint32) *kerberosResult {
 	invalidResult := &kerberosResult{
 		valid:  false,
-		expire: time.Now().Add(kc.cacheTTL),
+		expire: time.Now().Add(kc.failureCacheTTL),
 	}
 
 	if kc.krbConfig == nil {
@@ -142,7 +144,8 @@ func (kc *kerberosCache) checkTicket(uid uint32) *kerberosResult {
 	info, err := os.Stat(ccachePath)
 	if err != nil {
 		logger.Debugf("kerberos: ccache not found for uid=%d path=%s: %v", uid, ccachePath, err)
-		return invalidResult
+		// CLI fallback: on macOS, tickets may be in the API cache
+		return kc.checkTicketFallback(uid)
 	}
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	if !ok || stat.Uid != uint32(uid) {
@@ -154,7 +157,8 @@ func (kc *kerberosCache) checkTicket(uid uint32) *kerberosResult {
 	// Step 2: parse ccache (gokrb5 panics on empty/invalid files, so we recover)
 	client, err := kc.loadAndParseCache(ccachePath, uid)
 	if err != nil {
-		return invalidResult
+		// CLI fallback: file may be corrupt but API cache may work
+		return kc.checkTicketFallback(uid)
 	}
 
 	// Step 3: verify realm matches expected value (reject rogue KDC / cross-realm)
@@ -187,6 +191,47 @@ func (kc *kerberosCache) checkTicket(uid uint32) *kerberosResult {
 	}
 
 	logger.Infof("kerberos: ticket validated for principal=%s uid=%d", principal, ldapUid)
+	return &kerberosResult{
+		valid:     true,
+		principal: principal,
+		ldapUid:   ldapUid,
+		ldapGid:   ldapGid,
+		ldapGids:  ldapGids,
+		expire:    time.Now().Add(kc.cacheTTL),
+	}
+}
+
+// checkTicketFallback uses CLI-based ticket check (klist) when file-based
+// ccache is unavailable (e.g., macOS API credential cache).
+func (kc *kerberosCache) checkTicketFallback(uid uint32) *kerberosResult {
+	invalidResult := &kerberosResult{
+		valid:  false,
+		expire: time.Now().Add(kc.failureCacheTTL),
+	}
+
+	principal := checkTicketViaCLI(uid)
+	if principal == "" {
+		return invalidResult
+	}
+
+	// Verify realm
+	parts := strings.SplitN(principal, "@", 2)
+	if len(parts) != 2 || parts[1] != kc.expectedRealm {
+		logger.Warnf("kerberos: CLI ticket realm mismatch: got %s, expected realm %s, uid=%d",
+			principal, kc.expectedRealm, uid)
+		return invalidResult
+	}
+	username := parts[0]
+
+	// Verify LDAP UID matches
+	ldapUid, ldapGid, ldapGids := lookupUserIdentity(username, uid, kc.ldapNode)
+	if ldapUid != uid {
+		logger.Warnf("kerberos: CLI ticket UID mismatch: principal=%s ldapUid=%d, expected=%d",
+			principal, ldapUid, uid)
+		return invalidResult
+	}
+
+	logger.Infof("kerberos: CLI ticket validated for principal=%s uid=%d", principal, ldapUid)
 	return &kerberosResult{
 		valid:     true,
 		principal: principal,

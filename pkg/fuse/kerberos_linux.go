@@ -19,35 +19,6 @@
 
 package fuse
 
-import (
-	"fmt"
-	"os"
-	"strconv"
-	"strings"
-)
-
-// getProcRealUID returns the real UID of the process identified by pid.
-// On Linux, reads /proc/<pid>/status to find the Uid line.
-func getProcRealUID(pid uint32) (uint32, error) {
-	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", pid))
-	if err != nil {
-		return 0, fmt.Errorf("read /proc/%d/status: %w", pid, err)
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		if strings.HasPrefix(line, "Uid:") {
-			fields := strings.Fields(line)
-			if len(fields) >= 2 {
-				uid, err := strconv.ParseUint(fields[1], 10, 32)
-				if err != nil {
-					return 0, fmt.Errorf("parse uid from /proc/%d/status: %w", pid, err)
-				}
-				return uint32(uid), nil
-			}
-		}
-	}
-	return 0, fmt.Errorf("uid not found in /proc/%d/status", pid)
-}
-
 // checkTicketViaCLI is the Linux fallback. On Linux, file-based credential
 // caches (/tmp/krb5cc_<uid>) are the default, so the file-based check
 // in checkTicket() should work. This is only called if that fails.
